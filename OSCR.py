@@ -36,7 +36,7 @@ for x in range(len(raw_program)):
 	data = raw_data.strip()
 	program.append(data)
 
-#main functions for the cpu 
+#----------------------------------------main functions for the cpu-------------------------------------
 class main():
 	#clock function
 	def clock(tick,time_gap):
@@ -55,21 +55,27 @@ class main():
 		return count
 	
 	#function for making the work easy of creating a meory
-	def create_memory(Range):
-		memory =  []
-		for i in range(Range):
-			memory.append(0)
-		return memory
+	def create_memory(size):
+		return [0] * size    #creating a list of memory
 
-#Contrl unit
+#-------------------------------------------------Contrl unit---------------------------------------------------------------
 class control_unit():
 	
-	#This code assigns the command
-	def command_assigner(program,count):
-		raw_command = program[count]
-		command = raw_command.split('|')
+# This code assigns the command
+	def command_assigner(program, count):
+		raw_command = program[count].strip()
 		
-		#checking if the data is larger than 16-bits
+		# Ignore full-line comments
+		if raw_command.startswith("//") or raw_command.startswith("#"):
+			return ["NOP"]  # Treat comment lines as NOP (No Operation)
+		
+		# Remove inline comments (anything after //)
+		command = raw_command.split("//")[0].strip()
+		
+		# Split command into parts
+		command = command.split('|')
+		
+		# Checking if the data is larger than 16-bits
 		for i in range(len(command)):
 			try:
 				value = int(command[i])
@@ -83,7 +89,21 @@ class control_unit():
 		return command
 	
 	#This code executes the command
-	def command_executor(command,count,register,ram,flag_register):
+	def command_executor(command,count,register,ram,flag_register,sp,stack):
+		#stack functions
+		#Push function
+		if command[0] == 'PUSH':
+			stack[sp] = register[command[1]]
+			sp += 1
+		
+		#Pop function
+		if command[0] == 'POP':
+			sp -= 1
+			register[command[1]] = stack[sp]
+		
+		#detecting if the stack pointer is going out of range
+		if sp >= 1023:
+			print("Stack Overflow!")
 		
 		#Jump command code
 		if command[0] == 'JMP':
@@ -145,6 +165,18 @@ class control_unit():
 		if command[0] == 'NOP':
 			pass
 		
+		#functions for making a function in OSCR assembly easier
+		#function for calling
+		if command[0] == 'CALL':
+			sp += 1
+			stack[sp] = count
+			count = command[1] - 1
+		
+		#return function
+		if command[0] == 'RET':
+			sp -= 1
+			count = stack[sp] + 1
+		
 		#Data movement and Transfer functions
 		if command[0] == 'R2R':
 			#Shifts data from Register to ram
@@ -156,9 +188,9 @@ class control_unit():
 				register[command[2]] = ram[command[3]]
 			
 		#Always keep this at last
-		return command,count,register,ram,flag_register
+		return command,count,register,ram,flag_register,sp,stack
 
-#ALU functions
+#----------------------------------------ALU functions--------------------------------------------------
 def alu(command,register):
 	flag_register = ''
 	
@@ -181,7 +213,6 @@ def alu(command,register):
 		register[command[4]] = int(register[command[2]]) * int(register[command[3]])
 	
 	#Logical shift:
-	
 	#logical shift left
 	if command[1] == 'LSH':
 		register[command[3]] = int(register[command[3]]) << int(command[2])
@@ -224,9 +255,8 @@ def alu(command,register):
 #important variables
 register = main.create_memory(6)
 ram      = main.create_memory(65535)
-
-print('The given program is: \n>>>' , program)
-
+stack    = main.create_memory(1024)
+SP = 0
 time.sleep(1)
 tick = 0
 count = 0
@@ -240,7 +270,7 @@ while command[0] != 'HALT':
 	tick = main.clock(tick,time_gap)
 	count = main.counter(tick,count)
 	if tick == 1:
-		command,count,register,ram,flag_register = control_unit.command_executor(command,count,register,ram,flag_register)
+		command,count,register,ram,flag_register,SP,stack = control_unit.command_executor(command,count,register,ram,flag_register,SP,stack)
 
 
 print("\n\n-----------------The program ended!---------------------")
