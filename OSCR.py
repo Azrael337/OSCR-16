@@ -80,15 +80,16 @@ class main():
 class control_unit():
 	
 # This code assigns the command
-	def command_assigner(program, count):
+	def command_assigner(program, count, ram):
 		raw_command = program[count].strip()
 		
 		# Ignore full-line comments
 		if raw_command.startswith("//") or raw_command.startswith("#"):
 			return ["NOP"]  # Treat comment lines as NOP (No Operation)
 		
-		# Remove inline comments (anything after //)
-		command = raw_command.split("//")[0].strip()
+		# Remove inline comments after // or #
+		command = raw_command.split("//")[0].split("#")[0].strip()
+		
 		
 		# Split command into parts
 		command = command.split('|')
@@ -104,10 +105,46 @@ class control_unit():
 			except ValueError:
 				pass  # Ignore non-integer values
 		
-		return command
+		#supporting variables i know real cpu's don't do like this but remember this is  only for learning
+		real_command = []  # New list for processed commands
+		
+		for x in command:
+			# Ensure x is a string before checking its first character
+			if isinstance(x, str) and len(x) > 0:
+				x = x.strip()  # Remove unwanted spaces
+				if x.startswith("$"):  # Check if it represents a variable
+					var_address = x[1:]  # Extract number after $
+					if var_address.isdigit():  # Ensure it's a valid number
+						real_command.append(ram[int(var_address)])  # Convert to int and fetch value from RAM
+					else:
+						print(f"Invalid variable reference: {x}")  # Debugging message
+				else:
+					real_command.append(x)  # Normal command
+			else:
+				real_command.append(x)  # If not a string, add it directly
+		return real_command,ram
 	
 	#This code executes the command
 	def command_executor(command,count,register,ram,flag_register,sp,stack):
+		
+		known_commands = [
+		'JMP',
+		'JMPZ',
+		'JMPN',
+		'JMPZ-N',
+		'ALU',
+		'PUSH',
+		'POP',
+		'DRAW',
+		'CLS',
+		'MOV',
+		'OUT',
+		'INP',
+		'DEL',
+		'NOP',
+		'CALL',
+		'RET'
+		]
 		
 		#Screen functions
 		#draw function
@@ -127,16 +164,16 @@ class control_unit():
 		#push fUNCTION
 		if command[0] == 'PUSH':
 			if sp < 1023:
-				stack[sp] = register[command[1]]
 				sp += 1
+				stack[sp] = register[command[1]]
 			else:
 				print("Stack Overflow!")
 		
 		#POP function
 		if command[0] == 'POP':
 			if sp > 0:
-				sp -= 1
 				register[command[1]] = stack[sp]
+				sp -= 1
 			else:
 				print("Stack Underflow!")
 		
@@ -221,6 +258,10 @@ class control_unit():
 			#shifts data from Ram to Register
 			if command[1] == 'REG':
 				register[command[2]] = ram[command[3]]
+			
+		if command[0] not in known_commands:
+			print(f"ERROR: Unknown instruction '{command[0]}' at line {count}")
+			command =  "HALT"
 			
 		#Always keep this at last
 		return command,count,register,ram,flag_register,sp,stack
@@ -323,7 +364,7 @@ display_memory = [[0 for _ in range(WIDTH)] for _ in range(HEIGHT)]
 
 #The main loop of cpu emulator
 while command[0] != 'HALT':
-	command = control_unit.command_assigner(program,count)
+	command,ram = control_unit.command_assigner(program,count,ram)
 	tick = main.clock(tick,time_gap)
 	count = main.counter(tick,count)
 	if tick == 1:
