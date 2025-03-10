@@ -10,7 +10,8 @@
 #Full form => Open Source CPU by Ranak
 
 #important modules
-import time,subprocess
+import time
+import pygame
 
 #basic ui
 print('''
@@ -19,7 +20,7 @@ print('''
 |This is a cpu emulator made by Ranak                    |
 |CPU specifications:                                     |
 | Ram:262kb  | BUS SIZE:16-bits | 65535 lines of program |
-|Clock speed: 1 khz                                      |
+|Clock speed: 1 khz   |   Stack size: 1024 * 65535 bits  |
 |Please read the manual before using the emulator!       |
 +--------------------------------------------------------+
 ''')
@@ -41,7 +42,6 @@ class main():
 	#clock function
 	def clock(tick,time_gap):
 		time.sleep(time_gap)
-		#subprocess.run(["aplay", "retro-blip-236676.wav"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)   #you can have sond on anytime
 		if (tick == 1):
 			tick = 0
 		elif (tick == 0):
@@ -57,8 +57,26 @@ class main():
 	#function for making the work easy of creating a meory
 	def create_memory(size):
 		return [0] * size    #creating a list of memory
+	
+	def draw_screen():
+		for y in range(HEIGHT):
+			for x in range(WIDTH):
+				color = (display_memory[y][x], display_memory[y][x], display_memory[y][x])  # Grayscale
+				pygame.draw.rect(screen, color, (x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE))
+		pygame.display.flip()
+	
+	def clear_screen():
+		global display_memory
+		display_memory = [[0 for _ in range(WIDTH)] for _ in range(HEIGHT)]
+		screen.fill((0, 0, 0))
+		pygame.display.flip()
 
-#-------------------------------------------------Contrl unit---------------------------------------------------------------
+	# Example function to set a pixel (simulating CPU instruction)
+	def set_pixel(x, y, brightness):
+		if 0 <= x < WIDTH and 0 <= y < HEIGHT:
+			display_memory[y][x] = brightness  # Brightness: 0-255
+
+#-------------------------------------------------Control unit---------------------------------------------------------------
 class control_unit():
 	
 # This code assigns the command
@@ -90,20 +108,37 @@ class control_unit():
 	
 	#This code executes the command
 	def command_executor(command,count,register,ram,flag_register,sp,stack):
+		
+		#Screen functions
+		#draw function
+		if command[0] == 'DRAW':
+			x = command[1]
+			y = command[2]
+			state = command[3]
+			main.set_pixel(x,y,state)
+			main.draw_screen()
+		
+		#Clear screen function
+		if command[0] == 'CLS':
+			main.clear_screen()
+			main.draw_screen()
+		
 		#stack functions
-		#Push function
+		#push fUNCTION
 		if command[0] == 'PUSH':
-			stack[sp] = register[command[1]]
-			sp += 1
+			if sp < 1023:
+				stack[sp] = register[command[1]]
+				sp += 1
+			else:
+				print("Stack Overflow!")
 		
-		#Pop function
+		#POP function
 		if command[0] == 'POP':
-			sp -= 1
-			register[command[1]] = stack[sp]
-		
-		#detecting if the stack pointer is going out of range
-		if sp >= 1023:
-			print("Stack Overflow!")
+			if sp > 0:
+				sp -= 1
+				register[command[1]] = stack[sp]
+			else:
+				print("Stack Underflow!")
 		
 		#Jump command code
 		if command[0] == 'JMP':
@@ -246,9 +281,17 @@ def alu(command,register):
 	if command[1] == 'AND':
 		register[command[4]] = (int(register[command[2]]) & int(register[command[3]]))
 	
-	#OR function
-	#if command[1] == 'OR':
-	#	regiter[command[5]] = (register
+	#Or instruction
+	if command[1] == 'OR':
+		register[command[4]] = (int(register[command[2]]) | int(register[command[3]]))
+	
+	#XOR function
+	if command[1] == 'XOR':
+		register[command[4]] = (int(register[command[2]]) ^ int(register[command[3]]))
+	
+	#NOT function
+	if command[1] == 'NOT':
+		register[command[3]] = ~(int(register[command[2]]) & 0xFFFF)
 	
 	return register,flag_register
 
@@ -263,6 +306,20 @@ count = 0
 command = ' '
 time_gap = float(1/1000)
 flag_register = ''
+
+# Screen constants
+WIDTH, HEIGHT = 256, 256  # Logical resolution
+PIXEL_SIZE = 2  # Scale factor (2x2 pixels per logical pixel)
+WINDOW_SIZE = (WIDTH * PIXEL_SIZE, HEIGHT * PIXEL_SIZE)
+
+# Initialize Pygame
+pygame.init()
+screen = pygame.display.set_mode(WINDOW_SIZE)
+pygame.display.set_caption("OSCR-16 Grayscale Screen")
+clock = pygame.time.Clock()
+
+# Memory-mapped display (2D array)
+display_memory = [[0 for _ in range(WIDTH)] for _ in range(HEIGHT)]
 
 #The main loop of cpu emulator
 while command[0] != 'HALT':
