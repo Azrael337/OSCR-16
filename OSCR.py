@@ -143,7 +143,9 @@ class control_unit():
 		'DEL',
 		'NOP',
 		'CALL',
-		'RET'
+		'RET',
+		'R2R',
+		'UPD'
 		]
 		
 		#Screen functions
@@ -153,11 +155,13 @@ class control_unit():
 			y = command[2]
 			state = command[3]
 			main.set_pixel(x,y,state)
-			main.draw_screen()
 		
 		#Clear screen function
 		if command[0] == 'CLS':
 			main.clear_screen()
+		
+		#Updating the screen seperatly so that it doesn't get too slowed
+		if command[0] == 'UPD':
 			main.draw_screen()
 		
 		#stack functions
@@ -202,6 +206,8 @@ class control_unit():
 		if command[0] == 'JMPZ-N':
 			if (flag_register != 'Z' and flag_register != 'N'):
 				count = command[1] - 1
+			else:
+				return command,count,register,ram,flag_register,sp,stack
 		
 		#Adding stuff to registers
 		if command[0] == 'MOV':
@@ -246,8 +252,8 @@ class control_unit():
 		
 		#return function
 		if command[0] == 'RET':
-			sp -= 1
 			count = stack[sp] + 1
+			sp -= 1
 		
 		#Data movement and Transfer functions
 		if command[0] == 'R2R':
@@ -305,15 +311,28 @@ def alu(command,register):
 	if command[1] == 'DEC':
 		register[command[2]] = int(register[command[2]]) - 1
 	
+	flag_func = [
+	'ADD',
+	'SUB',
+	'DIV',
+	'MUL',
+	'INC',
+	'DEC'
+	]
 	#FLAGS
-	if len(command) == 5:
-		if register[command[4]] == 0:
+	if command[1] in flag_func:
+		if command[1] in flag_func[:3]:
+			address = 4
+		else:
+			address = 2
+		
+		if register[command[address]] == 0:
 			flag_register = 'Z'
 		
-		if register[command[4]] < 0:
+		if register[command[address]] < 0:
 			flag_register = 'N'
 	
-		if register[command[4]] >= 65535:
+		if register[command[address]] >= 65535:
 			flag_register = 'O'
 	
 	#Boolean logic:
@@ -345,12 +364,12 @@ time.sleep(1)
 tick = 0
 count = 0
 command = ' '
-time_gap = float(1/1000)
+time_gap = 0
 flag_register = ''
 
 # Screen constants
-WIDTH, HEIGHT = 256, 256  # Logical resolution
-PIXEL_SIZE = 2  # Scale factor (2x2 pixels per logical pixel)
+WIDTH, HEIGHT = 64, 64  # Logical resolution
+PIXEL_SIZE = 8  # Scale factor (8x8 pixels per logical pixel)
 WINDOW_SIZE = (WIDTH * PIXEL_SIZE, HEIGHT * PIXEL_SIZE)
 
 # Initialize Pygame
